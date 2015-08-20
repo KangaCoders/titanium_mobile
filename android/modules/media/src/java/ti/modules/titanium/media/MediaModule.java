@@ -45,6 +45,7 @@ import android.graphics.BitmapFactory;
 import android.hardware.Camera;
 import android.hardware.Camera.CameraInfo;
 import android.media.MediaMetadataRetriever;
+import android.media.CamcorderProfile;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
@@ -69,6 +70,8 @@ public class MediaModule extends KrollModule
 	protected static final String PROP_AUTOSAVE = "saveToPhotoGallery";
 	protected static final String PROP_WHICH_CAMERA = "whichCamera";
 	protected static final String PROP_OVERLAY = "overlay";
+	protected static final String PROP_VIDEO_QUALITY = "videoQuality";
+	protected static final String PROP_VIDEO_MAX_DURATION = "videoMaximumDuration";
 
 	@Kroll.constant public static final int UNKNOWN_ERROR = -1;
 	@Kroll.constant public static final int NO_ERROR = 0;
@@ -102,7 +105,7 @@ public class MediaModule extends KrollModule
 	@Kroll.constant public static final int VIDEO_FINISH_REASON_PLAYBACK_ENDED = 0;
 	@Kroll.constant public static final int VIDEO_FINISH_REASON_PLAYBACK_ERROR = 1;
 	@Kroll.constant public static final int VIDEO_FINISH_REASON_USER_EXITED = 2;
-	
+
 	@Kroll.constant public static final int VIDEO_TIME_OPTION_NEAREST_KEYFRAME = MediaMetadataRetriever.OPTION_CLOSEST;
 	@Kroll.constant public static final int VIDEO_TIME_OPTION_CLOSEST_SYNC = MediaMetadataRetriever.OPTION_CLOSEST_SYNC;
 	@Kroll.constant public static final int VIDEO_TIME_OPTION_NEXT_SYNC = MediaMetadataRetriever.OPTION_NEXT_SYNC;
@@ -116,6 +119,9 @@ public class MediaModule extends KrollModule
 	@Kroll.constant public static final int CAMERA_FLASH_OFF = 0;
 	@Kroll.constant public static final int CAMERA_FLASH_ON = 1;
 	@Kroll.constant public static final int CAMERA_FLASH_AUTO = 2;
+
+	@Kroll.constant public static final int VIDEO_QUALITY_LOW = CamcorderProfile.QUALITY_LOW;
+	@Kroll.constant public static final int VIDEO_QUALITY_HIGH = CamcorderProfile.QUALITY_HIGH;
 
 	public MediaModule()
 	{
@@ -138,13 +144,13 @@ public class MediaModule extends KrollModule
 			vibrator.vibrate(pattern, -1);
 		}
 	}
-	
+
 	private int getLastImageId(Activity activity){
 	    final String[] imageColumns = { MediaStore.Images.Media._ID };
 	    final String imageOrderBy = MediaStore.Images.Media._ID+" DESC";
 	    final String imageWhere = null;
 	    final String[] imageArguments = null;
-	    
+
 	    Cursor imageCursor = activity.getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, imageColumns, imageWhere, imageArguments, imageOrderBy);
 	    if (imageCursor == null) {
 	    	return -1;
@@ -157,14 +163,14 @@ public class MediaModule extends KrollModule
 	        return 0;
 	    }
 	}
-	
+
 	private void launchNativeCamera(KrollDict cameraOptions)
 	{
 		KrollFunction successCallback = null;
 		KrollFunction cancelCallback = null;
 		KrollFunction errorCallback = null;
 		boolean saveToPhotoGallery = false;
-		
+
 		if (cameraOptions.containsKeyAndNotNull(TiC.PROPERTY_SUCCESS)) {
 			successCallback = (KrollFunction) cameraOptions.get(TiC.PROPERTY_SUCCESS);
 		}
@@ -177,18 +183,18 @@ public class MediaModule extends KrollModule
 		if (cameraOptions.containsKeyAndNotNull("saveToPhotoGallery")) {
 			saveToPhotoGallery = cameraOptions.getBoolean("saveToPhotoGallery");
 		}
-		
-		
-		//Create an output file irrespective of whether saveToGallery 
+
+
+		//Create an output file irrespective of whether saveToGallery
 		//is true or false. If false, we'll delete it later
 		File imageFile = null;
-		
+
 		if (saveToPhotoGallery) {
 			imageFile = MediaModule.createGalleryImageFile();
 		} else {
 			imageFile = MediaModule.createExternalStorageFile();
 		}
-		
+
 		//Sanity Checks
 		if (imageFile == null) {
 			if (errorCallback != null) {
@@ -198,7 +204,7 @@ public class MediaModule extends KrollModule
 			}
 			return;
 		}
-		
+
 		if (getIsCameraSupported() == false) {
 			if (errorCallback != null) {
 				KrollDict response = new KrollDict();
@@ -209,12 +215,12 @@ public class MediaModule extends KrollModule
 			imageFile.delete();
 			return;
 		}
-		
+
 		//Create Intent
 		Uri fileUri = Uri.fromFile(imageFile); // create a file to save the image
 		Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
 		intent.putExtra(MediaStore.EXTRA_OUTPUT, fileUri);
-		
+
 		//Setup CameraResultHandler
 		Activity activity = TiApplication.getInstance().getCurrentActivity();
 		TiActivitySupport activitySupport = (TiActivitySupport) activity;
@@ -229,21 +235,23 @@ public class MediaModule extends KrollModule
 		resultHandler.activitySupport = activitySupport;
 		resultHandler.lastImageId = getLastImageId(activity);
 		activity.runOnUiThread(resultHandler);
-		
-		
+
+
 	}
-	
-	
+
+
 	private void launchCameraActivity(KrollDict cameraOptions, TiViewProxy overLayProxy) {
 		KrollFunction successCallback = null;
 		KrollFunction cancelCallback = null;
 		KrollFunction errorCallback = null;
 		boolean saveToPhotoGallery = false;
 		boolean autohide = true;
-		
+
 		int flashMode = CAMERA_FLASH_OFF;
 		int whichCamera = CAMERA_REAR;
-		
+		int videoQuality = VIDEO_QUALITY_HIGH;
+		int videoMaximumDuration = 0;
+
 		if (cameraOptions.containsKeyAndNotNull(TiC.PROPERTY_SUCCESS)) {
 			successCallback = (KrollFunction) cameraOptions.get(TiC.PROPERTY_SUCCESS);
 		}
@@ -265,7 +273,13 @@ public class MediaModule extends KrollModule
 		if (cameraOptions.containsKeyAndNotNull(PROP_WHICH_CAMERA)) {
 			whichCamera = cameraOptions.getInt(PROP_WHICH_CAMERA);
 		}
-		
+		if (cameraOptions.containsKeyAndNotNull(PROP_VIDEO_QUALITY)) {
+			videoQuality = cameraOptions.getInt(PROP_VIDEO_QUALITY);
+		}
+		if (cameraOptions.containsKeyAndNotNull(PROP_VIDEO_MAX_DURATION)) {
+			videoMaximumDuration = cameraOptions.getInt(PROP_VIDEO_MAX_DURATION);
+		}
+
 		TiCameraActivity.callbackContext = getKrollObject();
 		TiCameraActivity.successCallback = successCallback;
 		TiCameraActivity.cancelCallback = cancelCallback;
@@ -274,8 +288,10 @@ public class MediaModule extends KrollModule
 		TiCameraActivity.autohide = autohide;
 		TiCameraActivity.overlayProxy = overLayProxy;
 		TiCameraActivity.whichCamera = whichCamera;
+		TiCameraActivity.videoQuality = videoQuality;
+		TiCameraActivity.videoMaximumDuration = videoMaximumDuration;
 		TiCameraActivity.setFlashMode(flashMode);
-		
+
 		//Create Intent and Launch
 		Activity activity = TiApplication.getInstance().getCurrentActivity();
 		Intent intent = new Intent(activity, TiCameraActivity.class);
@@ -295,9 +311,9 @@ public class MediaModule extends KrollModule
 		} else {
 			cameraOptions = new KrollDict(options);
 		}
-		
+
 		Object overlay = cameraOptions.get(PROP_OVERLAY);
-		
+
 		if ( (overlay != null) && (overlay instanceof TiViewProxy) ) {
 			launchCameraActivity(cameraOptions, (TiViewProxy)overlay);
 		} else {
@@ -316,7 +332,7 @@ public class MediaModule extends KrollModule
 		KrollFunction errorCallback = null;
 
 		KrollDict callbackDict = null;
-		
+
 		//Check for callbacks
 		if (callbackargs != null) {
 			callbackDict = new KrollDict(callbackargs);
@@ -327,7 +343,7 @@ public class MediaModule extends KrollModule
 				errorCallback = (KrollFunction) callbackDict.get(TiC.EVENT_ERROR);
 			}
 		}
-		
+
 		//Validate arguments
 		boolean validType = ( (arg instanceof TiBlob) || (arg instanceof TiFileProxy) );
 		if (!validType) {
@@ -338,7 +354,7 @@ public class MediaModule extends KrollModule
 			}
 			return;
 		}
-		
+
 		TiBlob theBlob = null;
 		try {
 			//Make sure our processing argument is a Blob
@@ -347,7 +363,7 @@ public class MediaModule extends KrollModule
 			} else {
 				theBlob = (TiBlob) arg;
 			}
-			
+
 			if ((theBlob.getWidth() == 0) || (theBlob.getHeight() == 0)) {
 				if (errorCallback != null) {
 					KrollDict response = new KrollDict();
@@ -356,7 +372,7 @@ public class MediaModule extends KrollModule
 				}
 				return;
 			}
-			
+
 			BufferedInputStream bis = null;
 			BufferedOutputStream bos = null;
 			String extension = null;
@@ -375,10 +391,10 @@ public class MediaModule extends KrollModule
 					extension = null;
 				}
 			}
-			
-			
+
+
 			bis = new BufferedInputStream(theBlob.getInputStream());
-			
+
 			File imageFile = MediaModule.createGalleryImageFile(extension);
 			bos = new BufferedOutputStream(new FileOutputStream(imageFile));
 			byte[] buf = new byte[8096];
@@ -395,20 +411,20 @@ public class MediaModule extends KrollModule
 				bos.close();
 				bos = null;
 			}
-			
+
 			Intent mediaScanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
 			Uri contentUri = Uri.fromFile(imageFile);
 			mediaScanIntent.setData(contentUri);
 			Activity activity = TiApplication.getInstance().getCurrentActivity();
 			activity.sendBroadcast(mediaScanIntent);
-			
+
 			//All good. Dispatch success callback
 			if (successCallback != null) {
 				KrollDict response = new KrollDict();
 				response.putCodeAndMessage(NO_ERROR,null);
 				successCallback.callAsync(getKrollObject(), response);
 			}
-			
+
 		} catch(Throwable t) {
 			if (errorCallback != null) {
 				KrollDict response = new KrollDict();
@@ -417,7 +433,7 @@ public class MediaModule extends KrollModule
 			}
 		}
 	}
-	
+
 	@Kroll.method
 	public void hideCamera()
 	{
@@ -430,7 +446,7 @@ public class MediaModule extends KrollModule
 
 	}
 
-	
+
 
 	/**
 	 * @see org.appcelerator.kroll.KrollProxy#handleMessage(android.os.Message)
@@ -447,7 +463,7 @@ public class MediaModule extends KrollModule
 	protected static File createGalleryImageFile() {
 		return createGalleryImageFile(null);
 	}
-	
+
 	private static File createExternalStorageFile(String extension) {
 		File pictureDir = TiApplication.getInstance().getExternalFilesDir(Environment.DIRECTORY_PICTURES);
 		File appPictureDir = new File(pictureDir, TiApplication.getInstance().getAppInfo().getName());
@@ -469,7 +485,7 @@ public class MediaModule extends KrollModule
 
 		return imageFile;
 	}
-	
+
 	private static File createGalleryImageFile(String extension) {
 		File pictureDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
 		File appPictureDir = new File(pictureDir, TiApplication.getInstance().getAppInfo().getName());
@@ -509,7 +525,7 @@ public class MediaModule extends KrollModule
 			try {
 				BitmapFactory.Options opts = new BitmapFactory.Options();
 				opts.inJustDecodeBounds = true;
-				
+
 				BitmapFactory.decodeStream(new FileInputStream(imageFile), null, opts);
 				if (opts.outWidth == -1 || opts.outHeight == -1) {
 					throw new Exception("Could not decode the bitmap from imageFile");
@@ -519,7 +535,7 @@ public class MediaModule extends KrollModule
 				throw t;
 			}
 		}
-		
+
 		//Cleanup duplicates if possible.
 		private void checkAndDeleteDuplicate(Activity activity)
 		{
@@ -535,23 +551,23 @@ public class MediaModule extends KrollModule
 					return;
 				}
 				if (imageCursor.getCount()>0){
-					
+
 					if (!validFileCreated) {
 						try {
 							imageFile.delete();
 						} catch (Throwable t) {
 							//Ignore error
 						}
-						
+
 						imageFile = saveToPhotoGallery? MediaModule.createGalleryImageFile() : MediaModule.createExternalStorageFile();
 					}
-					
+
 					long compareLength = (validFileCreated) ? imageFile.length() : 0;
-					
+
 					while(imageCursor.moveToNext()){
 						int id = imageCursor.getInt(imageCursor.getColumnIndex(MediaStore.Images.Media._ID));
 						String path = imageCursor.getString(imageCursor.getColumnIndex(MediaStore.Images.Media.DATA));
-				        
+
 						if (!validFileCreated) {
 							//If file is invalid we will copy over the last image in the gallery
 							if (imageFile != null) {
@@ -564,7 +580,7 @@ public class MediaModule extends KrollModule
 								} catch(Throwable t) {
 									//Ignore this error. It will be caught on the next pass to validateFile.
 								}
-							} 
+							}
 						}
 
 						if (!path.equalsIgnoreCase(refPath)) {
@@ -594,7 +610,7 @@ public class MediaModule extends KrollModule
 				imageCursor.close();
 			}
 		}
-		
+
 		//Copies files over using Buffered Streams.
 		private void copyFile(File source, File destination) throws Throwable {
 			BufferedInputStream bis = new BufferedInputStream(new FileInputStream(source));
@@ -605,7 +621,7 @@ public class MediaModule extends KrollModule
 			while ((len = bis.read(buf)) != -1) {
 				bos.write(buf, 0, len);
 			}
-			
+
 			if (bis != null) {
 				bis.close();
 				bis = null;
@@ -622,21 +638,21 @@ public class MediaModule extends KrollModule
 			code = activitySupport.getUniqueResultCode();
 			activitySupport.launchActivityForResult(cameraIntent, code, this);
 		}
-		
+
 		@Override
 		public void onResult(Activity activity, int requestCode, int resultCode, Intent data)
 		{
 			if (requestCode == code) {
 				if (resultCode == Activity.RESULT_OK) {
-					
+
 					validFileCreated = true;
 					try {
 						validateFile();
 					} catch(Throwable t) {
 						validFileCreated = false;
 					}
-					
-					
+
+
 					checkAndDeleteDuplicate(activity);
 
 					try {
@@ -649,8 +665,8 @@ public class MediaModule extends KrollModule
 						}
 						return;
 					}
-					
-					
+
+
 					if (!saveToPhotoGallery) {
 						//Create a file in the internal data directory and delete the original file
 						try {
@@ -674,7 +690,7 @@ public class MediaModule extends KrollModule
 						mediaScanIntent.setData(contentUri);
 						activity.sendBroadcast(mediaScanIntent);
 					}
-					
+
 					//Create a blob for response
 					try {
 						TiFile theFile = new TiFile(imageFile, imageFile.toURI().toURL().toExternalForm(), false);
@@ -691,7 +707,7 @@ public class MediaModule extends KrollModule
 						}
 						return;
 					}
-					
+
 				} else {
 					//Delete the file
 					if (imageFile != null) {
@@ -713,7 +729,7 @@ public class MediaModule extends KrollModule
 					}
 				}
 			}
-			
+
 		}
 
 		@Override
@@ -745,7 +761,7 @@ public class MediaModule extends KrollModule
 	{
 		return TiCameraActivity.cameraFlashMode;
 	}
-	
+
 	@Kroll.method
 	public void openPhotoGallery(KrollDict options)
 	{
@@ -788,7 +804,7 @@ public class MediaModule extends KrollModule
 						return;
 					}
 					Log.d(TAG, "OnResult called: " + resultCode, Log.DEBUG_MODE);
-					
+
 					String path = null;
 					if (data != null) {
 						path = data.getDataString();
@@ -1080,4 +1096,3 @@ public class MediaModule extends KrollModule
 		return "Ti.Media";
 	}
 }
-
