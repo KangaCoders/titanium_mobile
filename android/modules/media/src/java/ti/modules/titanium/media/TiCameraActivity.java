@@ -541,13 +541,14 @@ public class TiCameraActivity extends TiBaseActivity implements SurfaceHolder.Ca
 		}
 
 		recorder.setCamera(camera); // state "Initial"
-
 		recorder.setAudioSource(MediaRecorder.AudioSource.CAMCORDER); // state "Initialized"
 		recorder.setVideoSource(MediaRecorder.VideoSource.CAMERA);
 
-    	recorder.setProfile(CamcorderProfile.get(videoQuality));
-    	recorder.setMaxDuration(videoMaximumDuration);
+   	recorder.setProfile(CamcorderProfile.get(videoQuality));
+   	recorder.setMaxDuration(videoMaximumDuration);
+
  		recorder.setOutputFile(path);
+
 		try {
 			recorder.prepare(); // state "Prepared"
 		} catch (Exception e) {

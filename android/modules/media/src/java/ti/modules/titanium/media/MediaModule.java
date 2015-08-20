@@ -1038,6 +1038,34 @@ public class MediaModule extends KrollModule
 	}
 
 	@Kroll.method
+	public void startRecording(KrollDict options)
+	{
+		String path = null;
+
+		if (options.containsKey("path")) {
+			path = (String) options.get("path");
+		}
+
+		// make sure the preview / camera are open before trying to start recording
+		if (path != null && TiCameraActivity.cameraActivity != null) {
+			TiCameraActivity.startRecording(path);
+		} else {
+			Log.e(TAG, "Path empty or camera preview is not open, unable to start recording");
+		}
+	}
+
+	@Kroll.method
+	public void stopRecording()
+	{
+		// make sure the preview / camera are open before trying to stop recording
+		if (TiCameraActivity.cameraActivity != null) {
+			TiCameraActivity.stopRecording();
+		} else {
+			Log.e(TAG, "Camera preview is not open, unable to stop recording");
+		}
+	}
+
+	@Kroll.method
 	public void switchCamera(int whichCamera)
 	{
 		TiCameraActivity activity = TiCameraActivity.cameraActivity;
