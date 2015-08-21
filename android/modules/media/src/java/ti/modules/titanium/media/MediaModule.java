@@ -72,6 +72,8 @@ public class MediaModule extends KrollModule
 	protected static final String PROP_OVERLAY = "overlay";
 	protected static final String PROP_VIDEO_QUALITY = "videoQuality";
 	protected static final String PROP_VIDEO_MAX_DURATION = "videoMaximumDuration";
+	protected static final String PROP_VIDEO_BIT_RATE = "videoBitRate";
+	protected static final String PROP_AUDIO_BIT_RATE = "audioBitRate";
 
 	@Kroll.constant public static final int UNKNOWN_ERROR = -1;
 	@Kroll.constant public static final int NO_ERROR = 0;
@@ -258,6 +260,8 @@ public class MediaModule extends KrollModule
 		int whichCamera = CAMERA_REAR;
 		int videoQuality = VIDEO_QUALITY_HIGH;
 		int videoMaximumDuration = 0;
+		int videoBitRate = 2500000;
+		int audioBitRate = 256000;
 
 		if (cameraOptions.containsKeyAndNotNull(TiC.PROPERTY_SUCCESS)) {
 			successCallback = (KrollFunction) cameraOptions.get(TiC.PROPERTY_SUCCESS);
@@ -286,6 +290,12 @@ public class MediaModule extends KrollModule
 		if (cameraOptions.containsKeyAndNotNull(PROP_VIDEO_MAX_DURATION)) {
 			videoMaximumDuration = cameraOptions.getInt(PROP_VIDEO_MAX_DURATION);
 		}
+		if (cameraOptions.containsKeyAndNotNull(PROP_VIDEO_BIT_RATE)) {
+			videoBitRate = cameraOptions.getInt(PROP_VIDEO_BIT_RATE);
+		}
+		if (cameraOptions.containsKeyAndNotNull(PROP_AUDIO_BIT_RATE)) {
+			audioBitRate = cameraOptions.getInt(PROP_AUDIO_BIT_RATE);
+		}
 
 		TiCameraActivity.callbackContext = getKrollObject();
 		TiCameraActivity.successCallback = successCallback;
@@ -297,6 +307,8 @@ public class MediaModule extends KrollModule
 		TiCameraActivity.whichCamera = whichCamera;
 		TiCameraActivity.videoQuality = videoQuality;
 		TiCameraActivity.videoMaximumDuration = videoMaximumDuration;
+		TiCameraActivity.videoBitRate = videoBitRate;
+		TiCameraActivity.audioBitRate = audioBitRate;
 		TiCameraActivity.setFlashMode(flashMode);
 
 		//Create Intent and Launch

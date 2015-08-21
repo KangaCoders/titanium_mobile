@@ -75,6 +75,8 @@ public class TiCameraActivity extends TiBaseActivity implements SurfaceHolder.Ca
 	public static int cameraFlashMode = MediaModule.CAMERA_FLASH_OFF;
 	public static int videoQuality = MediaModule.VIDEO_QUALITY_HIGH;
 	public static int videoMaximumDuration = 0;
+	public static int videoBitRate = 2500000;
+	public static int audioBitRate = 256000;
 	public static boolean autohide = true;
 
 	private static class PreviewLayout extends FrameLayout
@@ -546,6 +548,9 @@ public class TiCameraActivity extends TiBaseActivity implements SurfaceHolder.Ca
 
    	recorder.setProfile(CamcorderProfile.get(videoQuality));
    	recorder.setMaxDuration(videoMaximumDuration);
+
+   	recorder.setVideoEncodingBitRate(videoBitRate);
+   	recorder.setAudioEncodingBitRate(audioBitRate);
 
  		recorder.setOutputFile(path);
 
