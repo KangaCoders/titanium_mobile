@@ -122,6 +122,13 @@ public class MediaModule extends KrollModule
 
 	@Kroll.constant public static final int VIDEO_QUALITY_LOW = CamcorderProfile.QUALITY_LOW;
 	@Kroll.constant public static final int VIDEO_QUALITY_HIGH = CamcorderProfile.QUALITY_HIGH;
+	@Kroll.constant public static final int VIDEO_QUALITY_1080P = CamcorderProfile.QUALITY_1080P;
+	@Kroll.constant public static final int VIDEO_QUALITY_2160P = CamcorderProfile.QUALITY_2160P;
+	@Kroll.constant public static final int VIDEO_QUALITY_480P = CamcorderProfile.QUALITY_480P;
+	@Kroll.constant public static final int VIDEO_QUALITY_720P = CamcorderProfile.QUALITY_720P;
+	@Kroll.constant public static final int VIDEO_QUALITY_CIF = CamcorderProfile.QUALITY_CIF;
+	@Kroll.constant public static final int VIDEO_QUALITY_QCIF = CamcorderProfile.QUALITY_QCIF;
+	@Kroll.constant public static final int VIDEO_QUALITY_QVGA = CamcorderProfile.QUALITY_QVGA;
 
 	public MediaModule()
 	{
