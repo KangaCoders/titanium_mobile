@@ -546,7 +546,12 @@ public class TiCameraActivity extends TiBaseActivity implements SurfaceHolder.Ca
 		recorder.setAudioSource(MediaRecorder.AudioSource.CAMCORDER); // state "Initialized"
 		recorder.setVideoSource(MediaRecorder.VideoSource.CAMERA);
 
-   	recorder.setProfile(CamcorderProfile.get(videoQuality));
+		if(CamcorderProfile.hasProfile(videoQuality)){
+			recorder.setProfile(CamcorderProfile.get(videoQuality));
+		}else{
+			recorder.setProfile(CamcorderProfile.get(MediaModule.VIDEO_QUALITY_HIGH));
+		}
+
    	recorder.setMaxDuration(videoMaximumDuration);
 
    	recorder.setVideoEncodingBitRate(videoBitRate);
