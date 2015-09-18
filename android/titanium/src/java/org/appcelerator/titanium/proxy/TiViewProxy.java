@@ -62,7 +62,8 @@ import android.view.View;
 
 	// others
 	"focusable", "touchEnabled", "visible", "enabled", "opacity",
-	"softKeyboardOnFocus", "transform", "touchTestId"
+	"softKeyboardOnFocus", "transform", "elevation", "touchTestId",
+	"translationX", "translationY", "translationZ"
 })
 public abstract class TiViewProxy extends KrollProxy implements Handler.Callback
 {
@@ -100,7 +101,7 @@ public abstract class TiViewProxy extends KrollProxy implements Handler.Callback
 
 	// TODO: Deprecated since Release 3.0.0
 	@Deprecated private AtomicBoolean layoutStarted = new AtomicBoolean();
-	
+
 	/**
 	 * Constructs a new TiViewProxy instance.
 	 * @module.api
@@ -119,14 +120,14 @@ public abstract class TiViewProxy extends KrollProxy implements Handler.Callback
 	{
 		options = handleStyleOptions(options);
 		super.handleCreationDict(options);
-		
+
 		if (options.containsKey(TiC.PROPERTY_OVERRIDE_CURRENT_ANIMATION)) {
 			overrideCurrentAnimation = TiConvert.toBoolean(options, TiC.PROPERTY_OVERRIDE_CURRENT_ANIMATION, false);
 		}
 
 		//TODO eventManager.addOnEventChangeListener(this);
 	}
-	
+
 	public boolean getOverrideCurrentAnimation() {
 		return overrideCurrentAnimation;
 	}
@@ -150,7 +151,7 @@ public abstract class TiViewProxy extends KrollProxy implements Handler.Callback
 		if (idx != -1) {
 			baseUrl = baseUrl.substring(idx + 1).replace(".js", "");
 		}
-		
+
 		styleSheetUrlCache.put(creationUrl,baseUrl);
 		return baseUrl;
 	}
@@ -188,7 +189,7 @@ public abstract class TiViewProxy extends KrollProxy implements Handler.Callback
 		if (dict == null || dict.isEmpty()) {
 			return options;
 		}
-		
+
 		extend(dict);
 		if (Log.isDebugModeEnabled()) {
 			Log.d(TAG, "trying to get stylesheet for base:" + baseUrl + ",classes:" + styleClasses + ",id:" + viewId + ",dict:"
@@ -431,7 +432,7 @@ public abstract class TiViewProxy extends KrollProxy implements Handler.Callback
 	{
 		this.view = view;
 	}
-	
+
 	public TiUIView forceCreateView()
 	{
 		view = null;
@@ -454,7 +455,7 @@ public abstract class TiViewProxy extends KrollProxy implements Handler.Callback
 		modelListener = transferview;
 		view.setProxy(this);
 	}
-	
+
 	/**
 	 * Creates or retrieves the view associated with this proxy.
 	 * @return a TiUIView instance.
@@ -472,7 +473,7 @@ public abstract class TiViewProxy extends KrollProxy implements Handler.Callback
 
 		return (TiUIView) TiMessenger.sendBlockingMainMessage(getMainHandler().obtainMessage(MSG_GETVIEW), 0);
 	}
-	
+
 	protected TiUIView handleGetView()
 	{
 		if (view == null) {
@@ -495,11 +496,11 @@ public abstract class TiViewProxy extends KrollProxy implements Handler.Callback
 		}
 		return view;
 	}
-	
+
 	public void realizeViews(TiUIView view)
 	{
 		setModelListener(view);
-		
+
 		// Use a copy so bundle can be modified as it passes up the inheritance
 		// tree. Allows defaults to be added and keys removed.
 		if (children != null) {
@@ -519,7 +520,7 @@ public abstract class TiViewProxy extends KrollProxy implements Handler.Callback
 			}
 		}
 	}
-	
+
 	public void releaseViews()
 	{
 		if (view != null) {
@@ -594,12 +595,12 @@ public abstract class TiViewProxy extends KrollProxy implements Handler.Callback
 			remove(childToRemove);
 		}
 	}
-	
+
 
 	/**
 	 * Adds a child to this view proxy in the specified position. This is useful for "vertical" and
 	 * "horizontal" layouts.
-	 * @param params A Dictionary containing a TiViewProxy for the view and an int for the position 
+	 * @param params A Dictionary containing a TiViewProxy for the view and an int for the position
 	 * @module.api
 	 */
 	@Kroll.method
@@ -658,7 +659,7 @@ public abstract class TiViewProxy extends KrollProxy implements Handler.Callback
 			view.insertAt(cv, position);
 		}
 	}
-	
+
 	private void handleAdd(TiViewProxy child)
 	{
 		children.add(child);
@@ -1144,7 +1145,7 @@ public abstract class TiViewProxy extends KrollProxy implements Handler.Callback
 
 		int pointWindowX = viewLocation[0] + x;
 		int pointWindowY = viewLocation[1] + y;
-	
+
 		// Apply reverse transformation to get the original location
 		float[] points = new float[] { pointWindowX - destLocation[0], pointWindowY - destLocation[1] };
 		points = destView.getPreTranslationValue(points);
@@ -1242,7 +1243,7 @@ public abstract class TiViewProxy extends KrollProxy implements Handler.Callback
 			getMainHandler().sendEmptyMessage(MSG_HIDE_KEYBOARD);
 		}
 	}
-	
+
 	protected void handleHideKeyboard()
 	{
 		TiUIView v = peekView();

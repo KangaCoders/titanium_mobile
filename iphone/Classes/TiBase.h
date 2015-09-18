@@ -593,7 +593,8 @@ extern NSString * const kTiURLSessionCompleted;
 extern NSString * const kTiURLSessionEventsCompleted;
 extern NSString * const kTiURLDowloadProgress;
 extern NSString * const kTiURLUploadProgress;
-extern NSString * const KTiWatchKitExtensionRequest;
+extern NSString * const kTiWatchKitExtensionRequest;
+extern NSString * const kTiContinueActivity;
     
 extern NSString* const kTiBehaviorSize;
 extern NSString* const kTiBehaviorFill;
@@ -623,10 +624,11 @@ extern NSString* const kTiExceptionLocation;
     
 #include "TiThreading.h"
 //Counter to keep track of KrollContext
+#ifdef TI_USE_KROLL_THREAD
 extern int krollContextCounter;
 void incrementKrollCounter();	
 void decrementKrollCounter();
-    
+#endif
 /**
  *	TiThreadPerformOnMainThread should replace all Titanium instances of
  *	performSelectorOnMainThread, ESPECIALLY if wait is to be yes. That way,
@@ -642,9 +644,10 @@ void TiThreadPerformOnMainThread(void (^mainBlock)(void),BOOL waitForFinish);
  *	convenience functions are provided. By being a function, it removes self
  *	from being a stack variable. It also has some optimizations.
  */
+#ifdef TI_USE_KROLL_THREAD
 void TiThreadReleaseOnMainThread(id releasedObject,BOOL waitForFinish);
 void TiThreadRemoveFromSuperviewOnMainThread(UIView* view,BOOL waitForFinish);
-
+#endif
 /**	
  *	Blocks sent to TiThreadPerformOnMainThread will be processed on the main
  *	thread. Most of the time, this is done using dispatch_async or
@@ -681,11 +684,13 @@ void TiThreadRemoveFromSuperviewOnMainThread(UIView* view,BOOL waitForFinish);
  *
  *	Returns: Whether or not the queue was empty upon return.
  */
+
+#ifdef TI_USE_KROLL_THREAD
 BOOL TiThreadProcessPendingMainThreadBlocks(NSTimeInterval timeout, BOOL doneWhenEmpty, void * reserved );
 
 	
 void TiThreadInitalize();
-
+#endif
 #include "TiPublicAPI.h"
 
 #ifdef __cplusplus

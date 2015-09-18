@@ -1,6 +1,6 @@
 /**
  * Appcelerator Titanium Mobile
- * Copyright (c) 2009-2014 by Appcelerator, Inc. All Rights Reserved.
+ * Copyright (c) 2009-2015 by Appcelerator, Inc. All Rights Reserved.
  * Licensed under the terms of the Apache Public License
  * Please see the LICENSE included with this distribution for details.
  */
@@ -15,8 +15,13 @@
 #import "TiAppiOSNotificationActionProxy.h"
 #import "TiAppiOSNotificationCategoryProxy.h"
 #import "TiAppiOSUserDefaultsProxy.h"
-
-
+#import "TiAppiOSUserActivityProxy.h"
+#import <MobileCoreServices/MobileCoreServices.h>
+#if IS_XCODE_7
+#import "TiAppiOSSearchableItemAttributeSetProxy.h"
+#import "TiAppiOSSearchableItemProxy.h"
+#import "TiAppiOSSearchableIndexProxy.h"
+#endif
 @implementation TiAppiOSProxy
 
 -(void)dealloc
@@ -84,7 +89,10 @@
         }
         if ((count == 1) && [type isEqual:@"watchkitextensionrequest"]) {
         [[NSNotificationCenter defaultCenter] addObserver:self
-                                                 selector:@selector(didReceiveWatchExtensionRequestNotification:) name:KTiWatchKitExtensionRequest object:nil];
+                                                 selector:@selector(didReceiveWatchExtensionRequestNotification:) name:kTiWatchKitExtensionRequest object:nil];
+        }
+        if ((count == 1) && [type isEqual:@"continueactivity"]) {
+            [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(didReceiveContinueActivityNotification:) name:kTiContinueActivity object:nil];
         }
     }
 
@@ -132,12 +140,93 @@
             [[NSNotificationCenter defaultCenter] removeObserver:self name:kTiUserNotificationSettingsNotification object:nil];
         }
         if ((count == 1) && [type isEqual:@"watchkitextensionrequest"]) {
-            [[NSNotificationCenter defaultCenter] removeObserver:self name:KTiWatchKitExtensionRequest object:nil];
+            [[NSNotificationCenter defaultCenter] removeObserver:self name:kTiWatchKitExtensionRequest object:nil];
+        }
+        if ((count == 1) && [type isEqual:@"continueactivity"]) {
+            [[NSNotificationCenter defaultCenter] removeObserver:self name:kTiContinueActivity object:nil];
         }
     }
 }
 
 #pragma mark Public
+#if IS_XCODE_7
+-(id)createSearchableIndex:(id)unused
+{
+    if (![TiUtils isIOS9OrGreater]) {
+        return nil;
+    }
+    
+    TiAppiOSSearchableIndexProxy *proxy = [[[TiAppiOSSearchableIndexProxy alloc]init] autorelease];
+    return proxy;
+}
+
+-(id)createSearchableItem:(id)args
+{
+    if (![TiUtils isIOS9OrGreater]) {
+        return nil;
+    }
+    if (![NSThread isMainThread]) {
+        __block id result;
+        TiThreadPerformOnMainThread(^{result = [[self createSearchableItem:args] retain];}, YES);
+        return [result autorelease];
+    }
+    
+    ENSURE_SINGLE_ARG(args,NSDictionary);
+    
+    NSString* uniqueIdentifier = nil;
+    ENSURE_ARG_FOR_KEY(uniqueIdentifier, args, @"uniqueIdentifier", NSString);
+    
+    NSString* domainIdentifier = nil;
+    ENSURE_ARG_FOR_KEY(domainIdentifier, args, @"domainIdentifier", NSString);
+    
+    TiAppiOSSearchableItemAttributeSetProxy *attributeSet = nil;
+    ENSURE_ARG_FOR_KEY(attributeSet, args, @"attributeSet", TiAppiOSSearchableItemAttributeSetProxy);
+    
+    TiAppiOSSearchableItemProxy *proxy = [[[TiAppiOSSearchableItemProxy alloc]
+                                           initWithUniqueIdentifier:uniqueIdentifier
+                                           withDomainIdentifier:domainIdentifier
+                                           withAttributeSet:attributeSet.attributes] autorelease];
+    return proxy;
+}
+
+-(id)createSearchableItemAttributeSet:(id)args
+{
+    if (![TiUtils isIOS9OrGreater]) {
+        return nil;
+    }
+    if (![NSThread isMainThread]) {
+        __block id result;
+        TiThreadPerformOnMainThread(^{result = [[self createSearchableItemAttributeSet:args] retain];}, YES);
+        return [result autorelease];
+    }
+    ENSURE_SINGLE_ARG(args,NSDictionary);
+    NSString* itemContentType = nil;
+    ENSURE_ARG_FOR_KEY(itemContentType, args, @"itemContentType", NSString);
+    
+    NSMutableDictionary *props = [NSMutableDictionary dictionaryWithDictionary:args];
+    [props removeObjectForKey:@"itemContentType"]; //remove to avoid duplication
+    
+    TiAppiOSSearchableItemAttributeSetProxy *proxy = [[[TiAppiOSSearchableItemAttributeSetProxy alloc] initWithItemContentType:itemContentType withProps:props] autorelease];
+
+    return proxy;
+}
+
+#endif
+-(id)createUserActivity:(id)args
+{
+    if (![NSThread isMainThread]) {
+        __block id result;
+        TiThreadPerformOnMainThread(^{result = [[self createUserActivity:args] retain];}, YES);
+        return [result autorelease];
+    }
+    NSString* activityType;
+    ENSURE_SINGLE_ARG(args,NSDictionary);
+    ENSURE_ARG_FOR_KEY(activityType, args, @"activityType", NSString);
+    
+    TiAppiOSUserActivityProxy *userActivityProxy = [[[TiAppiOSUserActivityProxy alloc] initWithOptions:args] autorelease];
+
+    return userActivityProxy;
+}
 
 -(id)createUserDefaults:(id)args
 {
@@ -145,7 +234,7 @@
     ENSURE_SINGLE_ARG(args,NSDictionary);
     ENSURE_ARG_FOR_KEY(suiteName, args, @"suiteName", NSString);
     
-    NSUserDefaults *defaultsObject = [[NSUserDefaults alloc] initWithSuiteName:suiteName];
+    NSUserDefaults *defaultsObject = [[[NSUserDefaults alloc] initWithSuiteName:suiteName] autorelease];
     
     TiAppiOSUserDefaultsProxy *userDefaultsProxy = [[[TiAppiOSUserDefaultsProxy alloc] _initWithPageContext:[self executionContext]] autorelease];
     
@@ -320,6 +409,18 @@
     }, NO);
 }
 
+-(NSArray*)supportedUserActivityTypes
+{    
+    if (![TiUtils isIOS8OrGreater]) {
+        return nil;
+    }
+    
+    NSArray *supportedActivityTypes = [[NSBundle mainBundle]
+                                       objectForInfoDictionaryKey:@"NSUserActivityTypes"];
+    
+    return supportedActivityTypes;
+}
+
 -(NSDictionary*)currentUserNotificationSettings
 {
     if (![TiUtils isIOS8OrGreater]) {
@@ -488,6 +589,12 @@
 	}
 }
 
+-(void)didReceiveContinueActivityNotification:(NSNotification*)notif
+{
+    NSDictionary *notification = [notif userInfo];
+    [self fireEvent:@"continueactivity" withObject:notification];
+}
+
 -(void)didReceiveLocalNotification:(NSNotification*)note
 {
 	NSDictionary *notification = [note object];
@@ -555,6 +662,9 @@
 
 -(void)didReceiveWatchExtensionRequestNotification:(NSNotification*)notif
 {
+    if ([TiUtils isIOS9OrGreater]) {
+        DebugLog(@"[WARN] Deprecated. Please use Ti.App.iOS.WatchConnectivity instead");
+    }
     [self fireEvent:@"watchkitextensionrequest" withObject:[notif userInfo]];
 }
 
@@ -562,6 +672,9 @@
 
 -(void)sendWatchExtensionReply:(id)args
 {
+    if ([TiUtils isIOS9OrGreater]) {
+        DebugLog(@"[WARN] Deprecated. Please use Ti.App.iOS.WatchConnectivity instead");
+    }
     if(![TiUtils isIOS8OrGreater]) {
         return;
     }
@@ -656,6 +769,220 @@
 		return NUMINT(UIUserNotificationActivationModeForeground);
 	}
 	return NUMINT(0);
+}
+
+#pragma mark UTI Text Type Constants
+-(CFStringRef)UTTYPE_TEXT
+{
+	return kUTTypeText;
+}
+
+-(CFStringRef)UTTYPE_PLAIN_TEXT
+{
+	return kUTTypePlainText;
+}
+
+-(CFStringRef)UTTYPE_UTF8_PLAIN_TEXT
+{
+	return kUTTypeUTF8PlainText;
+}
+
+-(CFStringRef)UTTYPE_UTF16_EXTERNAL_PLAIN_TEXT
+{
+	return kUTTypeUTF16ExternalPlainText;
+}
+
+-(CFStringRef)UTTYPE_UTF16_PLAIN_TEXT
+{
+	return kUTTypeUTF16PlainText;
+}
+
+-(CFStringRef)UTTYPE_RTF
+{
+	return kUTTypeRTF;
+}
+
+-(CFStringRef)UTTYPE_HTML
+{
+	return kUTTypeHTML;
+}
+
+-(CFStringRef)UTTYPE_XML
+{
+	return kUTTypeXML;
+}
+
+-(CFStringRef)UTTYPE_SOURCE_CODE
+{
+	return kUTTypeSourceCode;
+}
+
+-(CFStringRef)UTTYPE_C_SOURCE
+{
+	return kUTTypeCSource;
+}
+
+-(CFStringRef)UTTYPE_OBJECTIVE_C_SOURCE
+{
+	return kUTTypeObjectiveCSource;
+}
+
+-(CFStringRef)UTTYPE_C_PLUS_PLUS_SOURCE
+{
+	return kUTTypeCPlusPlusSource;
+}
+
+-(CFStringRef)UTTYPE_OBJECTIVE_C_PLUS_PLUS_SOURCE
+{
+	return kUTTypeObjectiveCPlusPlusSource;
+}
+
+-(CFStringRef)UTTYPE_C_HEADER
+{
+	return kUTTypeCHeader;
+}
+
+-(CFStringRef)UTTYPE_C_PLUS_PLUS_HEADER
+{
+	return kUTTypeCPlusPlusHeader;
+}
+
+-(CFStringRef)UTTYPE_JAVA_SOURCE
+{
+	return kUTTypeJavaSource;
+}
+
+#pragma mark UTI Composite Content Type Constants
+-(CFStringRef)UTTYPE_PDF
+{
+	return kUTTypePDF;
+}
+
+-(CFStringRef)UTTYPE_RTFD
+{
+	return kUTTypeRTFD;
+}
+
+-(CFStringRef)UTTYPE_FLAT_RTFD
+{
+	return kUTTypeFlatRTFD;
+}
+
+-(CFStringRef)UTTYPE_TXN_TEXT_AND_MULTIMEDIA_DATA
+{
+	return kUTTypeTXNTextAndMultimediaData;
+}
+
+-(CFStringRef)UTTYPE_WEB_ARCHIVE
+{
+	return kUTTypeWebArchive;
+}
+
+#pragma mark UTI Image Content Types
+-(CFStringRef)UTTYPE_IMAGE
+{
+	return kUTTypeImage;
+}
+
+-(CFStringRef)UTTYPE_JPEG
+{
+	return kUTTypeJPEG;
+}
+
+-(CFStringRef)UTTYPE_JPEG2000
+{
+	return kUTTypeJPEG2000;
+}
+
+-(CFStringRef)UTTYPE_TIFF
+{
+	return kUTTypeTIFF;
+}
+
+-(CFStringRef)UTTYPE_PICT
+{
+	return kUTTypePICT;
+}
+
+-(CFStringRef)UTTYPE_GIF
+{
+	return kUTTypeGIF;
+}
+
+-(CFStringRef)UTTYPE_PNG
+{
+	return kUTTypePNG;
+}
+
+-(CFStringRef)UTTYPE_QUICKTIME_IMAGE
+{
+	return kUTTypeQuickTimeImage;
+}
+
+-(CFStringRef)UTTYPE_APPLE_ICNS
+{
+	return kUTTypeAppleICNS;
+}
+
+-(CFStringRef)UTTYPE_BMP
+{
+	return kUTTypeBMP;
+}
+
+-(CFStringRef)UTTYPE_ICO
+{
+	return kUTTypeICO;
+}
+
+#pragma mark UTI Audio Visual Content Types
+-(CFStringRef)UTTYPE_AUDIO_VISUAL_CONTENT
+{
+	return kUTTypeAudiovisualContent;
+}
+
+-(CFStringRef)UTTYPE_MOVIE
+{
+	return kUTTypeMovie;
+}
+
+-(CFStringRef)UTTYPE_VIDEO
+{
+	return kUTTypeVideo;
+}
+
+-(CFStringRef)UTTYPE_AUDIO
+{
+	return kUTTypeAudio;
+}
+
+-(CFStringRef)UTTYPE_QUICKTIME_MOVIE
+{
+	return kUTTypeQuickTimeMovie;
+}
+
+-(CFStringRef)UTTYPE_MPEG
+{
+	return kUTTypeMPEG;
+}
+
+-(CFStringRef)UTTYPE_MPEG4
+{
+	return kUTTypeMPEG4;
+}
+
+-(CFStringRef)UTTYPE_MP3
+{
+	return kUTTypeMP3;
+}
+
+-(CFStringRef)UTTYPE_MPEG4_AUDIO
+{
+	return kUTTypeMPEG4Audio;
+}
+
+-(CFStringRef)UTTYPE_APPLE_PROTECTED_MPEG4_AUDIO
+{
+	return kUTTypeAppleProtectedMPEG4Audio;
 }
 
 -(NSString*)applicationOpenSettingsURL
