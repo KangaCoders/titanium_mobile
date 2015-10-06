@@ -2390,7 +2390,7 @@ iOSBuilder.prototype.createXcodeProject = function createXcodeProject(next) {
 
 	var logger = this.logger,
 		appName = this.tiapp.name,
-		scrubbedAppName = appName.replace(/-/g, '_').replace(/\W/g, ''),
+		scrubbedAppName = appName.replace(/[-\W]/g, '_'),
 		srcFile = path.join(this.platformPath, 'iphone', 'Titanium.xcodeproj', 'project.pbxproj'),
 		contents = fs.readFileSync(srcFile).toString(),
 		xcodeProject = xcode.project(path.join(this.buildDir, this.tiapp.name + '.xcodeproj', 'project.pbxproj')),
@@ -3339,17 +3339,19 @@ iOSBuilder.prototype.writeInfoPlist = function writeInfoPlist() {
 
 	// inject Apple Transport Security settings
 	if (!plist.NSAppTransportSecurity || typeof plist.NSAppTransportSecurity !== 'object') {
-		this.logger.debug(__('Disabling ATS'));
+		this.logger.info(__('Disabling ATS'));
 		// disable ATS
 		plist.NSAppTransportSecurity = {
 			NSAllowsArbitraryLoads: true
 		};
-	} else if (!plist.NSAppTransportSecurity.NSAllowsArbitraryLoads && this.whitelistAppceleratorDotCom) {
+	} else if (plist.NSAppTransportSecurity.NSAllowsArbitraryLoads) {
+		this.logger.info(__('ATS explicitly disabled'));
+	} else if (this.whitelistAppceleratorDotCom) {
 		// we have a whitelist, make sure appcelerator.com is in the list
 		plist.NSAppTransportSecurity || (plist.NSAppTransportSecurity = {});
 		plist.NSAppTransportSecurity.NSAllowsArbitraryLoads = false;
 
-		this.logger.debug(__('Inject appcelerator.com into ATS whitelist'));
+		this.logger.info(__('ATS enabled, injecting appcelerator.com into ATS whitelist'));
 		plist.NSAppTransportSecurity.NSExceptionDomains || (plist.NSAppTransportSecurity.NSExceptionDomains = {});
 		if (!plist.NSAppTransportSecurity.NSExceptionDomains['appcelerator.com']) {
 			plist.NSAppTransportSecurity.NSExceptionDomains['appcelerator.com'] = {
@@ -3364,7 +3366,8 @@ iOSBuilder.prototype.writeInfoPlist = function writeInfoPlist() {
 			};
 		}
 	} else {
-		this.logger.debug(__('ATS enabled, but appcelerator.com sites will be unreachable'));
+		this.logger.warn(__('ATS enabled, however *.appcelerator.com are not whitelisted'));
+		this.logger.warn(__('Consider setting the "ios.whitelist.appcelerator.com" property in the tiapp.xml to "true"'));
 	}
 
 	if (this.target === 'device' && this.deviceId === 'itunes') {
@@ -3589,7 +3592,7 @@ iOSBuilder.prototype.copyTitaniumiOSFiles = function copyTitaniumiOSFiles() {
 	this.logger.info(__('Copying Titanium iOS files'));
 
 	var nameChanged = !this.previousBuildManifest || this.tiapp.name !== this.previousBuildManifest.name,
-		name = this.tiapp.name.replace(/-/g, '_').replace(/\W/g, ''),
+		name = this.tiapp.name.replace(/[-\W]/g, '_'),
 		namespace = /^[0-9]/.test(name) ? 'k' + name : name,
 		copyFileRegExps = [
 			// note: order of regexps matters
@@ -3689,14 +3692,12 @@ iOSBuilder.prototype.copyTitaniumiOSFiles = function copyTitaniumiOSFiles() {
 		});
 	}, this);
 
-	function copyAndReplaceFile(src, name) {
+	function copyAndReplaceFile(src, dest) {
 		var srcStat = fs.statSync(src),
 			srcMtime = JSON.parse(JSON.stringify(srcStat.mtime)),
 			rel = src.replace(path.dirname(this.titaniumSdkPath) + '/', ''),
 			prev = this.previousBuildManifest.files && this.previousBuildManifest.files[rel],
-			relPath = path.dirname(src).replace(this.platformPath + '/iphone', '').replace(/Titanium/g, name),
-			destFilename = path.basename(src).replace('Titanium', name),
-			dest = path.join(this.buildDir, relPath, destFilename),
+			relPath = path.dirname(src).replace(this.platformPath + '/iphone', ''),
 			destDir = path.dirname(dest),
 			destExists = fs.existsSync(dest),
 			destStat = destExists && fs.statSync(dest),
@@ -3710,7 +3711,7 @@ iOSBuilder.prototype.copyTitaniumiOSFiles = function copyTitaniumiOSFiles() {
 			}
 			this.logger.debug(__('Writing %s', dest.cyan));
 			fs.existsSync(destDir) || wrench.mkdirSyncRecursive(destDir);
-			fs.writeFileSync(dest, contents.toString().replace(/Titanium/g, name));
+			fs.writeFileSync(dest, contents.toString().replace(/Titanium/g, this.tiapp.name));
 		} else {
 			this.logger.trace(__('No change, skipping %s', dest.cyan));
 		}
@@ -3724,8 +3725,16 @@ iOSBuilder.prototype.copyTitaniumiOSFiles = function copyTitaniumiOSFiles() {
 		delete this.buildDirFiles[dest];
 	}
 
-	copyAndReplaceFile.call(this, path.join(this.platformPath, 'iphone', 'Titanium_Prefix.pch'), name);
-	copyAndReplaceFile.call(this, path.join(this.platformPath, 'iphone', 'Titanium.xcodeproj', 'xcshareddata', 'xcschemes', 'Titanium.xcscheme'), this.tiapp.name);
+	copyAndReplaceFile.call(
+		this,
+		path.join(this.platformPath, 'iphone', 'Titanium_Prefix.pch'),
+		path.join(this.buildDir, name + '_Prefix.pch')
+	);
+	copyAndReplaceFile.call(
+		this,
+		path.join(this.platformPath, 'iphone', 'Titanium.xcodeproj', 'xcshareddata', 'xcschemes', 'Titanium.xcscheme'),
+		path.join(this.buildDir, this.tiapp.name + '.xcodeproj', 'xcshareddata', 'xcschemes', name + '.xcscheme')
+	);
 };
 
 iOSBuilder.prototype.copyExtensionFiles = function copyExtensionFiles() {
@@ -4012,16 +4021,6 @@ iOSBuilder.prototype.copyResources = function copyResources(next) {
 		}
 	});
 
-	this.logger.info(__('Analyzing CommonJS modules'));
-	this.commonJsModules.forEach(function (module) {
-		var relPath = module.libFile.replace(this.projectDir + '/', '');
-		jsFiles[relPath] = {
-			src: module.libFile,
-			dest: path.join(this.xcodeAppDir, path.basename(module.libFile)),
-			srcStat: fs.statSync(module.libFile)
-		};
-	}, this);
-
 	this.logger.info(__('Analyzing platform files'));
 	walk(path.join(this.projectDir, 'platform', 'iphone'), this.xcodeAppDir);
 	walk(path.join(this.projectDir, 'platform', 'ios'), this.xcodeAppDir);
@@ -4058,6 +4057,7 @@ iOSBuilder.prototype.copyResources = function copyResources(next) {
 		}
 	}, this);
 
+	this.logger.info(__('Analyzing CommonJS modules'));
 	this.commonJsModules.forEach(function (module) {
 		var filename = path.basename(module.libFile);
 		if (jsFiles[filename]) {
@@ -4065,6 +4065,11 @@ iOSBuilder.prototype.copyResources = function copyResources(next) {
 			this.logger.error(__('Please rename the file, then rebuild') + '\n');
 			process.exit(1);
 		}
+		jsFiles[filename] = {
+			src: module.libFile,
+			dest: path.join(this.xcodeAppDir, path.basename(module.libFile)),
+			srcStat: fs.statSync(module.libFile)
+		};
 	}, this);
 
 	function writeAssetContentsFile(dest, json) {
@@ -4483,8 +4488,10 @@ iOSBuilder.prototype.copyResources = function copyResources(next) {
 
 						if (this.minifyJS) {
 							this.cli.createHook('build.ios.compileJsFile', this, function (r, from, to, cb2) {
-								if (!fs.existsSync(to) || r.contents !== fs.readFileSync(to).toString()) {
+								var exists = fs.existsSync(to);
+								if (!exists || r.contents !== fs.readFileSync(to).toString()) {
 									this.logger.debug(__('Copying and minifying %s => %s', from.cyan, to.cyan));
+									exists && fs.unlinkSync(to);
 									fs.writeFileSync(to, r.contents);
 									this.jsFilesChanged = true;
 								} else {
@@ -4945,15 +4952,17 @@ iOSBuilder.prototype.optimizeFiles = function optimizeFiles(next) {
 				return next();
 			}
 
-			async.each(pngs, function (file, cb) {
+			async.eachLimit(pngs, 5, function (file, cb) {
 				var output = file + '.tmp';
 				this.logger.debug(__('Optimizing %s', file.cyan));
 				appc.subprocess.run(this.xcodeEnv.executables.pngcrush, ['-q', '-iphone', '-f', 0, file, output], function (code, out, err) {
 					if (code) {
 						this.logger.error(__('Failed to optimize %s (code %s)', file, code));
-					} else {
+					} else if (fs.existsSync(output)) {
 						fs.existsSync(file) && fs.unlinkSync(file);
 						fs.renameSync(output, file);
+					} else {
+						this.logger.warn(__('Unable to optimize %s; invalid png?'));
 					}
 					cb();
 				}.bind(this));
@@ -5106,8 +5115,11 @@ iOSBuilder.prototype.invokeXcodeBuild = function invokeXcodeBuild(next) {
 		'build',
 		'-target', this.tiapp.name,
 		'-configuration', this.xcodeTarget,
-		'-scheme', this.tiapp.name,
-		'-derivedDataPath', this.buildDir
+		'-scheme', this.tiapp.name.replace(/[-\W]/g, '_'),
+		'-derivedDataPath', this.buildDir,
+		'OBJROOT=' + path.join(this.buildDir, 'build', 'Intermediates'),
+		'SHARED_PRECOMPS_DIR=' + path.join(this.buildDir, 'build', 'Intermediates', 'PrecompiledHeaders'),
+		'SYMROOT=' + path.join(this.buildDir, 'build', 'Products')
 	];
 
 	if (this.simHandle) {
